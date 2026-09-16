@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>CS Mijas · Recepción</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1A3557; --navy-deep:#0F2440; --gold:#C8A84B; --gold-light:#E4D3A0; --gold-text:#8A6D1E;
+  --cream:#F7F5F1; --ink:#1B1F27; --slate:#64758A; --danger:#B4483C; --green:#3F6B52;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box;}
+html,body{margin:0; padding:0; height:100%; overflow:hidden; background:#F7F5F1;}
+body{font-family:'Inter',-apple-system,sans-serif;}
+#marco{position:fixed; inset:0; width:100%; height:100%; border:0; display:block;}
+
+/* Activación inicial */
+.activar{
+  position:fixed; inset:0; z-index:1000;
+  background:linear-gradient(135deg,var(--navy-deep),var(--navy));
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:#fff; text-align:center; padding:30px; cursor:pointer;
+  transition:opacity .5s var(--ease);
+}
+.activar.oculto{opacity:0; pointer-events:none;}
+.activar .logo{
+  width:86px; height:86px; border-radius:50%; border:2.5px solid var(--gold);
+  display:flex; align-items:center; justify-content:center; margin-bottom:26px;
+  font-family:'Fraunces',serif; font-weight:600; font-size:25px; color:var(--gold);
+}
+.activar h1{font-family:'Fraunces',serif; font-weight:500; font-size:clamp(28px,5vw,44px); margin:0 0 14px;}
+.activar p{font-size:clamp(16px,2.2vw,21px); color:rgba(255,255,255,.8); margin:0 0 34px; max-width:520px; line-height:1.5;}
+.activar .boton{
+  background:var(--gold); color:var(--navy-deep); border:none; border-radius:999px;
+  font-family:inherit; font-size:19px; font-weight:700; padding:20px 46px; cursor:pointer;
+}
+.activar .nota{font-size:13.5px; color:rgba(255,255,255,.55); margin-top:26px; max-width:460px; line-height:1.5;}
+
+/* Saludo */
+.saludo{
+  position:fixed; left:50%; bottom:34px; transform:translate(-50%,24px);
+  z-index:900; background:var(--navy); color:#fff;
+  font-family:'Fraunces',serif; font-size:clamp(19px,2.6vw,27px); font-weight:500;
+  padding:18px 34px; border-radius:999px; box-shadow:0 20px 50px -18px rgba(15,36,64,.6);
+  border:2px solid var(--gold); max-width:92vw; text-align:center;
+  opacity:0; transition:opacity .45s var(--ease), transform .45s var(--ease); pointer-events:none;
+}
+.saludo.visible{opacity:1; transform:translate(-50%,0);}
+
+/* Zona invisible para abrir el panel (esquina superior izquierda) */
+.zona-panel{position:fixed; top:0; left:0; width:78px; height:78px; z-index:950;}
+
+/* Panel de calibración */
+.panel-fondo{
+  position:fixed; inset:0; z-index:1001; background:rgba(15,36,64,.55);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.panel{
+  background:#fff; border-radius:16px; padding:26px; width:100%; max-width:440px;
+  max-height:90vh; overflow-y:auto; box-shadow:0 30px 80px -30px rgba(15,36,64,.5);
+}
+.panel h3{font-family:'Fraunces',serif; font-size:21px; color:var(--navy); margin:0 0 16px; font-weight:600;}
+.fila{font-size:14px; color:var(--ink); margin-bottom:7px;}
+.fila b{color:var(--navy);}
+.lectura{background:var(--cream); border-radius:9px; padding:12px 14px; margin:12px 0; font-size:13.5px; line-height:1.5;}
+.barra{height:11px; background:rgba(26,53,87,.12); border-radius:6px; margin:9px 0 6px; overflow:hidden;}
+.relleno{height:100%; background:var(--slate); transition:width .2s linear;}
+.relleno.supera{background:var(--gold);}
+.detecta{color:var(--green); font-weight:700; font-size:12px; letter-spacing:.4px;}
+.ayuda{font-size:12px; color:var(--slate); font-style:italic;}
+.mal{color:var(--danger); font-weight:600;}
+.botones{display:flex; gap:9px; flex-wrap:wrap; margin-bottom:11px;}
+.btn{
+  flex:1; min-width:96px; border:none; border-radius:999px; background:var(--navy); color:#fff;
+  font-family:inherit; font-weight:700; font-size:13.5px; padding:13px 8px; cursor:pointer;
+}
+.btn:hover{background:var(--navy-deep);}
+.btn-ancho{width:100%; flex:none; margin-bottom:11px;}
+.cerrar{
+  width:100%; border:1.5px solid rgba(26,53,87,.15); background:transparent; color:var(--slate);
+  font-family:inherit; font-weight:600; font-size:13.5px; padding:13px; border-radius:999px; cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<!-- ================= CONFIGURACIÓN ================= -->
+<script>
+/*
+  PEGA AQUÍ LA URL DE TU APLICACIÓN WEB DE APPS SCRIPT.
+  Es la misma que abres ahora en la tablet, la que acaba en /exec
+*/
+var URL_APP = 'https://script.google.com/macros/s/AKfycbzz-w-I1btRgH0jGb_xG8IVUn2rJTMTiYHHWmMSnkWQ9ooOAC2HNuOJOEvUZm3_V_dNbw/exec';
+
+/* Ajustes de la detección. UMBRAL se calibra desde el panel:
+   toca 5 veces la esquina superior izquierda de la pantalla. */
+var PRESENCIA = {
+  umbral: 14,                 // más bajo = detecta desde más lejos
+  confirmaciones: 2,          // lecturas seguidas para dar por buena la detección
+  esperaEntreSaludos: 45000,  // ms antes de volver a saludar
+  fps: 4                      // lecturas por segundo
+};
+
+var FRASES = {
+  es:{ voz:'Bienvenido a Centro de Servicios Mijas. Por favor, regístrese en esta pantalla.',
+       texto:'Bienvenido · Toque la pantalla para registrarse' },
+  en:{ voz:'Welcome to Centro de Servicios Mijas. Please register on this screen.',
+       texto:'Welcome · Touch the screen to register' },
+  fr:{ voz:'Bienvenue au Centro de Servicios Mijas. Veuillez vous enregistrer sur cet écran.',
+       texto:"Bienvenue · Touchez l'écran pour vous enregistrer" },
+  de:{ voz:'Willkommen im Centro de Servicios Mijas. Bitte melden Sie sich auf diesem Bildschirm an.',
+       texto:'Willkommen · Tippen Sie auf den Bildschirm' }
+};
+
+var VOCES_PREFERIDAS = {
+  es:['Mónica','Monica','Marisol','Paulina','Google español','Spanish'],
+  en:['Serena','Kate','Samantha','Martha','Google UK English Female','Google US English'],
+  fr:['Amélie','Amelie','Audrey','Aurélie','Marie','Google français'],
+  de:['Anna','Helena','Petra','Google Deutsch']
+};
+var CODIGO_VOZ = { es:'es-ES', en:'en-GB', fr:'fr-FR', de:'de-DE' };
+var TONO_VOZ = { rate:0.92, pitch:1.05 };
+</script>
+<!-- =============== FIN CONFIGURACIÓN =============== -->
+
+<iframe id="marco" allow="camera; microphone; autoplay" title="CS Mijas Recepción"></iframe>
+<div class="zona-panel" id="zonaPanel"></div>
+<div class="saludo" id="saludo"></div>
+
+<div class="activar" id="activar">
+  <div class="logo">CSM</div>
+  <h1>Recepción lista para empezar</h1>
+  <p>Pulse una vez para activar el saludo automático y el sonido. Solo hace falta hacerlo al abrir la aplicación.</p>
+  <button class="boton" id="btnActivar">Activar</button>
+  <div class="nota">Se pedirá permiso para usar la cámara. No se graba ni se envía ninguna imagen: solo se detecta si alguien se acerca.</div>
+</div>
+
+<div id="raizPanel"></div>
+
+<script>
+/* ============ ESTADO ============ */
+var pres = { activa:false, video:null, lienzo:null, ctx:null, anterior:null,
+             seguidas:0, ultimoSaludo:0, nivel:0, temporizador:null, error:null, detalle:null };
+var kiosko = { pantalla:'home', anunciando:false, idioma:'es' };
+var vozLista = false;
+
+/* ============ ARRANQUE ============ */
+document.getElementById('marco').src = URL_APP;
+
+document.getElementById('btnActivar').addEventListener('click', function(){
+  desbloquearVoz();
+  iniciarPresencia();
+  var a = document.getElementById('activar');
+  a.classList.add('oculto');
+  setTimeout(function(){ a.style.display = 'none'; }, 600);
+});
+
+/* La app incrustada nos dice qué está haciendo, para no saludar
+   encima de un cliente que está rellenando el formulario. */
+window.addEventListener('message', function(ev){
+  var d = ev.data;
+  if(d && d.fuente === 'csm-kiosko'){
+    kiosko.pantalla = d.pantalla;
+    kiosko.anunciando = d.anunciando;
+    if(d.idioma) kiosko.idioma = d.idioma;
+  }
+});
+
+/* ============ VOZ ============ */
+function desbloquearVoz(){
+  try{
+    if('speechSynthesis' in window){
+      var u = new SpeechSynthesisUtterance(' ');
+      u.volume = 1; u.rate = 2;
+      window.speechSynthesis.speak(u);
+      vozLista = true;
+    }
+  }catch(e){ console.error(e); }
+}
+
+/* iOS solo deja hablar poco después de un toque. Como el saludo
+   llega cuando nadie toca nada, se mantiene viva la sesión de voz
+   con frases en blanco inaudibles. */
+setInterval(function(){
+  if(!vozLista || !('speechSynthesis' in window)) return;
+  try{
+    var s = window.speechSynthesis;
+    if(s.speaking || s.pending) return;
+    var u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0.01; u.rate = 2;
+    s.speak(u);
+  }catch(e){}
+}, 6000);
+
+function elegirVoz(lang, codigo){
+  var voces = window.speechSynthesis.getVoices() || [];
+  if(!voces.length) return null;
+  var delIdioma = voces.filter(function(v){
+    return v.lang && v.lang.replace('_','-').toLowerCase().indexOf(lang) === 0;
+  });
+  if(!delIdioma.length) return null;
+  var pref = VOCES_PREFERIDAS[lang] || [];
+  for(var i=0;i<pref.length;i++){
+    var e = delIdioma.filter(function(v){
+      return v.name && v.name.toLowerCase().indexOf(pref[i].toLowerCase()) !== -1;
+    })[0];
+    if(e) return e;
+  }
+  var mejor = delIdioma.filter(function(v){
+    var id = ((v.voiceURI||'') + ' ' + (v.name||'')).toLowerCase();
+    return id.indexOf('enhanced')!==-1 || id.indexOf('premium')!==-1 || id.indexOf('siri')!==-1;
+  })[0];
+  if(mejor) return mejor;
+  return delIdioma.filter(function(v){ return v.lang.replace('_','-') === codigo; })[0] || delIdioma[0];
+}
+
+function hablar(texto, lang){
+  if(!('speechSynthesis' in window) || !texto) return;
+  var codigo = CODIGO_VOZ[lang] || 'es-ES';
+  try{
+    var s = window.speechSynthesis;
+    if(s.paused) s.resume();
+    var u = new SpeechSynthesisUtterance(texto);
+    u.lang = codigo; u.rate = TONO_VOZ.rate; u.pitch = TONO_VOZ.pitch; u.volume = 1;
+    var v = elegirVoz(lang, codigo);
+    if(v) u.voice = v;
+    s.speak(u);
+  }catch(e){ console.error('hablar: ' + e); }
+}
+
+/* ============ DETECCIÓN DE PRESENCIA ============ */
+/* La cámara mide movimiento, no distancia. Se pondera el centro
+   de la imagen: quien está cerca lo ocupa, quien pasa de largo
+   aparece por los bordes. Cada fotograma se reduce a 32x24 puntos
+   en blanco y negro, se compara con el anterior y se descarta:
+   no se graba ni se envía nada. */
+function iniciarPresencia(){
+  if(pres.activa) return;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    pres.error = 'Este navegador no permite usar la cámara.'; return;
+  }
+  navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:'user', width:{ideal:320}, height:{ideal:240} }, audio:false
+  }).then(function(stream){
+    var v = document.createElement('video');
+    v.setAttribute('playsinline',''); v.muted = true;
+    v.srcObject = stream; v.play();
+    var c = document.createElement('canvas'); c.width = 32; c.height = 24;
+    pres.video = v; pres.lienzo = c;
+    pres.ctx = c.getContext('2d', { willReadFrequently:true });
+    pres.activa = true; pres.error = null; pres.detalle = null;
+    pres.temporizador = setInterval(medir, Math.round(1000 / PRESENCIA.fps));
+  }).catch(function(err){
+    pres.error = (err && err.name) ? err.name : String(err);
+    pres.detalle = (pres.error === 'NotAllowedError')
+      ? 'Permiso denegado. Revise Ajustes → Safari → Cámara y Ajustes → Tiempo de uso → Restricciones.'
+      : null;
+    console.error('presencia: ' + err);
+  });
+}
+
+function detenerPresencia(){
+  try{
+    clearInterval(pres.temporizador);
+    if(pres.video && pres.video.srcObject){
+      pres.video.srcObject.getTracks().forEach(function(t){ t.stop(); });
+    }
+  }catch(e){}
+  pres.activa = false; pres.video = null; pres.anterior = null; pres.nivel = 0;
+}
+
+function medir(){
+  if(!pres.activa || !pres.video || pres.video.readyState < 2) return;
+  try{
+    var c = pres.lienzo, ctx = pres.ctx;
+    ctx.drawImage(pres.video, 0, 0, c.width, c.height);
+    var d = ctx.getImageData(0, 0, c.width, c.height).data;
+    var actual = new Uint8Array(c.width * c.height);
+    for(var i=0,j=0;i<d.length;i+=4,j++){
+      actual[j] = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
+    }
+    if(pres.anterior){
+      var suma=0, peso=0;
+      for(var y=0;y<c.height;y++){
+        for(var x=0;x<c.width;x++){
+          var idx = y*c.width + x;
+          var dx = Math.abs(x - c.width/2)/(c.width/2);
+          var dy = Math.abs(y - c.height/2)/(c.height/2);
+          var w = 1 - 0.7*Math.min(1, Math.sqrt(dx*dx + dy*dy));
+          suma += Math.abs(actual[idx] - pres.anterior[idx]) * w;
+          peso += w;
+        }
+      }
+      pres.nivel = suma / peso;
+      if(pres.nivel > PRESENCIA.umbral){
+        pres.seguidas++;
+        if(pres.seguidas >= PRESENCIA.confirmaciones){ pres.seguidas = 0; saludar(); }
+      } else { pres.seguidas = 0; }
+    }
+    pres.anterior = actual;
+  }catch(e){ console.error('medir: ' + e); }
+}
+
+function saludar(){
+  var ahora = Date.now();
+  if(ahora - pres.ultimoSaludo < PRESENCIA.esperaEntreSaludos) return;
+  // No interrumpir: ni si están llamando a alguien, ni si un
+  // cliente está en medio de rellenar algo.
+  if(kiosko.anunciando) return;
+  if(kiosko.pantalla && kiosko.pantalla !== 'home') return;
+
+  pres.ultimoSaludo = ahora;
+  var lang = FRASES[kiosko.idioma] ? kiosko.idioma : 'es';
+  hablar(FRASES[lang].voz, lang);
+
+  var s = document.getElementById('saludo');
+  s.textContent = FRASES[lang].texto;
+  s.classList.add('visible');
+  setTimeout(function(){ s.classList.remove('visible'); }, 6000);
+}
+
+/* ============ PANEL DE CALIBRACIÓN ============ */
+var toques = 0, ultimoToque = 0, timerPanel = null;
+document.getElementById('zonaPanel').addEventListener('click', function(){
+  var ahora = Date.now();
+  if(ahora - ultimoToque > 2000) toques = 0;
+  ultimoToque = ahora; toques++;
+  if(toques >= 5){ toques = 0; abrirPanel(); }
+});
+
+function abrirPanel(){
+  var voces = ('speechSynthesis' in window) ? (window.speechSynthesis.getVoices()||[]) : [];
+  document.getElementById('raizPanel').innerHTML =
+    '<div class="panel-fondo" onclick="if(event.target===this)cerrarPanel()"><div class="panel">' +
+      '<h3>Detección de presencia</h3>' +
+      '<div class="fila"><b>Cámara:</b> ' + (pres.activa ? 'activa' : 'parada') + '</div>' +
+      '<div class="fila"><b>Voz:</b> ' + (vozLista ? 'activada' : 'sin activar') +
+        ' · ' + voces.length + ' voces</div>' +
+      '<div class="fila"><b>App:</b> pantalla "' + kiosko.pantalla + '"</div>' +
+      '<div class="lectura" id="lectura">…</div>' +
+      '<div class="botones">' +
+        '<button class="btn" onclick="iniciarPresencia()">Activar</button>' +
+        '<button class="btn" onclick="detenerPresencia()">Parar</button>' +
+      '</div>' +
+      '<div class="botones">' +
+        '<button class="btn" onclick="ajustar(-2)">Más sensible</button>' +
+        '<button class="btn" onclick="ajustar(2)">Menos sensible</button>' +
+      '</div>' +
+      '<button class="btn btn-ancho" onclick="probarSaludo()">Probar saludo</button>' +
+      '<button class="cerrar" onclick="cerrarPanel()">Cerrar</button>' +
+    '</div></div>';
+  refrescar();
+  clearInterval(timerPanel);
+  timerPanel = setInterval(refrescar, 500);
+}
+function cerrarPanel(){
+  document.getElementById('raizPanel').innerHTML = '';
+  clearInterval(timerPanel); timerPanel = null;
+}
+function refrescar(){
+  var el = document.getElementById('lectura');
+  if(!el){ clearInterval(timerPanel); timerPanel = null; return; }
+  if(pres.error){
+    el.innerHTML = '<span class="mal">Cámara no disponible: ' + pres.error + '</span>' +
+      (pres.detalle ? '<div class="ayuda">' + pres.detalle + '</div>' : '');
+    return;
+  }
+  if(!pres.activa){ el.innerHTML = '<span class="ayuda">Parada. Pulse "Activar".</span>'; return; }
+  var pct = Math.min(100, Math.round((pres.nivel / (PRESENCIA.umbral*2)) * 100));
+  var supera = pres.nivel > PRESENCIA.umbral;
+  el.innerHTML =
+    '<div>Lectura: <b>' + pres.nivel.toFixed(1) + '</b> · Umbral: <b>' + PRESENCIA.umbral + '</b>' +
+      (supera ? ' <span class="detecta">PERSONA DETECTADA</span>' : '') + '</div>' +
+    '<div class="barra"><div class="relleno' + (supera?' supera':'') + '" style="width:' + pct + '%"></div></div>' +
+    '<div class="ayuda">Póngase a un metro: si no marca "detectada", pulse "Más sensible".</div>';
+}
+function ajustar(d){
+  PRESENCIA.umbral = Math.max(2, Math.min(60, PRESENCIA.umbral + d));
+  refrescar();
+}
+function probarSaludo(){
+  pres.ultimoSaludo = 0;
+  var lang = FRASES[kiosko.idioma] ? kiosko.idioma : 'es';
+  hablar(FRASES[lang].voz, lang);
+  var s = document.getElementById('saludo');
+  s.textContent = FRASES[lang].texto;
+  s.classList.add('visible');
+  setTimeout(function(){ s.classList.remove('visible'); }, 6000);
+}
+
+/* Reactivar tras volver de suspensión */
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible' && vozLista) desbloquearVoz();
+});
+</script>
+</body>
+</html>

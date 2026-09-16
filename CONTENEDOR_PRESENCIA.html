@@ -150,6 +150,8 @@ var pres = { activa:false, video:null, lienzo:null, ctx:null, anterior:null,
              seguidas:0, ultimoSaludo:0, nivel:0, temporizador:null, error:null, detalle:null };
 var kiosko = { pantalla:'home', anunciando:false, idioma:'es' };
 var ventanaKiosko = null;
+var ackRecibido = false;
+var ultimoSaludoLoDijo = '—';
 var vozLista = false;
 
 /* Recupera el umbral calibrado la última vez en este iPad, si lo
@@ -185,15 +187,21 @@ document.getElementById('btnActivar').addEventListener('click', function(){
    encima de un cliente que está rellenando el formulario. */
 window.addEventListener('message', function(ev){
   var d = ev.data;
-  if(d && d.fuente === 'csm-kiosko'){
-    kiosko.pantalla = d.pantalla;
-    kiosko.anunciando = d.anunciando;
-    if(d.idioma) kiosko.idioma = d.idioma;
-    // Guardamos quién nos escribe para poder contestarle. Es la
-    // única forma de alcanzar la app: está dentro de un marco de
-    // Google, así que no vale con iframe.contentWindow.
-    ventanaKiosko = ev.source;
+  if(!d || d.fuente !== 'csm-kiosko') return;
+
+  if(d.accion === 'saludo-recibido'){
+    ackRecibido = true;
+    ultimoSaludoLoDijo = 'la app (correcto)';
+    return;
   }
+
+  kiosko.pantalla = d.pantalla;
+  kiosko.anunciando = d.anunciando;
+  if(d.idioma) kiosko.idioma = d.idioma;
+  // Guardamos quién nos escribe para poder contestarle. Es la
+  // única forma de alcanzar la app: está dentro de un marco de
+  // Google, así que no vale con iframe.contentWindow.
+  ventanaKiosko = ev.source;
 });
 
 /* ============ VOZ ============ */
@@ -395,17 +403,32 @@ function saludar(){
   // puede hablar el documento que recibe los toques, y después de
   // pulsar "Activar" todos los toques van a la app. Si hablara
   // esta página, funcionaría la primera vez y luego enmudecería.
+  //
+  // Pero si la app no contesta (versión antigua sin actualizar,
+  // o todavía cargando), hay que saludar igualmente desde aquí:
+  // más vale una voz que se apague con el tiempo que ninguna.
   if(ventanaKiosko){
+    ackRecibido = false;
     try{
       ventanaKiosko.postMessage({ fuente:'csm-contenedor', accion:'saludar' }, '*');
+      setTimeout(function(){
+        if(!ackRecibido){
+          ultimoSaludoLoDijo = 'esta página (la app no contestó)';
+          saludarLocalmente();
+        }
+      }, 700);
       return;
     }catch(e){
       console.error('No se pudo avisar a la app: ' + e);
     }
   }
 
-  // Reserva: si la app todavía no ha dado señales de vida
-  // (acaba de cargar), saludamos desde aquí.
+  ultimoSaludoLoDijo = 'esta página (sin enlace con la app)';
+  saludarLocalmente();
+}
+
+/* Saludo pronunciado por esta página. Es la vía de reserva. */
+function saludarLocalmente(){
   var lang = FRASES[kiosko.idioma] ? kiosko.idioma : 'es';
   hablar(FRASES[lang].voz, lang);
   var s = document.getElementById('saludo');
@@ -433,8 +456,9 @@ function abrirPanel(){
         ' · ' + voces.length + ' voces</div>' +
       '<div class="fila"><b>App:</b> pantalla "' + kiosko.pantalla + '"</div>' +
       '<div class="fila"><b>Enlace con la app:</b> ' +
-        (ventanaKiosko ? 'conectado (la app pronuncia el saludo)' : 'esperando… (saludará esta página)') +
+        (ventanaKiosko ? 'conectado' : 'esperando…') +
       '</div>' +
+      '<div class="fila"><b>Último saludo lo dijo:</b> ' + ultimoSaludoLoDijo + '</div>' +
       '<div class="lectura" id="lectura">…</div>' +
       '<div class="botones">' +
         '<button class="btn" onclick="iniciarPresencia()">Activar</button>' +

@@ -97,7 +97,7 @@ body{font-family:'Inter',-apple-system,sans-serif;}
   PEGA AQUÍ LA URL DE TU APLICACIÓN WEB DE APPS SCRIPT.
   Es la misma que abres ahora en la tablet, la que acaba en /exec
 */
-var URL_APP = 'https://script.google.com/macros/s/AKfycbzz-w-I1btRgH0jGb_xG8IVUn2rJTMTiYHHWmMSnkWQ9ooOAC2HNuOJOEvUZm3_V_dNbw/exec';
+var URL_APP = 'https://script.google.com/macros/s/https://script.google.com/u/0/home/projects/1ftT4XwIi7rU8IPWB7b9COnIeCpABudtUHwuLiviBdvQp9tHLFwHkewyC/edit/exec';
 
 /* Ajustes de la detección. UMBRAL se calibra desde el panel:
    toca 5 veces la esquina superior izquierda de la pantalla. */
@@ -149,6 +149,7 @@ var TONO_VOZ = { rate:0.92, pitch:1.05 };
 var pres = { activa:false, video:null, lienzo:null, ctx:null, anterior:null,
              seguidas:0, ultimoSaludo:0, nivel:0, temporizador:null, error:null, detalle:null };
 var kiosko = { pantalla:'home', anunciando:false, idioma:'es' };
+var ventanaKiosko = null;
 var vozLista = false;
 
 /* Recupera el umbral calibrado la última vez en este iPad, si lo
@@ -188,6 +189,10 @@ window.addEventListener('message', function(ev){
     kiosko.pantalla = d.pantalla;
     kiosko.anunciando = d.anunciando;
     if(d.idioma) kiosko.idioma = d.idioma;
+    // Guardamos quién nos escribe para poder contestarle. Es la
+    // única forma de alcanzar la app: está dentro de un marco de
+    // Google, así que no vale con iframe.contentWindow.
+    ventanaKiosko = ev.source;
   }
 });
 
@@ -385,9 +390,24 @@ function saludar(){
   if(kiosko.pantalla && kiosko.pantalla !== 'home') return;
 
   pres.ultimoSaludo = ahora;
+
+  // El saludo lo pronuncia la APP, no esta página. En iOS solo
+  // puede hablar el documento que recibe los toques, y después de
+  // pulsar "Activar" todos los toques van a la app. Si hablara
+  // esta página, funcionaría la primera vez y luego enmudecería.
+  if(ventanaKiosko){
+    try{
+      ventanaKiosko.postMessage({ fuente:'csm-contenedor', accion:'saludar' }, '*');
+      return;
+    }catch(e){
+      console.error('No se pudo avisar a la app: ' + e);
+    }
+  }
+
+  // Reserva: si la app todavía no ha dado señales de vida
+  // (acaba de cargar), saludamos desde aquí.
   var lang = FRASES[kiosko.idioma] ? kiosko.idioma : 'es';
   hablar(FRASES[lang].voz, lang);
-
   var s = document.getElementById('saludo');
   s.textContent = FRASES[lang].texto;
   s.classList.add('visible');
@@ -412,6 +432,9 @@ function abrirPanel(){
       '<div class="fila"><b>Voz:</b> ' + (vozLista ? 'activada' : 'sin activar') +
         ' · ' + voces.length + ' voces</div>' +
       '<div class="fila"><b>App:</b> pantalla "' + kiosko.pantalla + '"</div>' +
+      '<div class="fila"><b>Enlace con la app:</b> ' +
+        (ventanaKiosko ? 'conectado (la app pronuncia el saludo)' : 'esperando… (saludará esta página)') +
+      '</div>' +
       '<div class="lectura" id="lectura">…</div>' +
       '<div class="botones">' +
         '<button class="btn" onclick="iniciarPresencia()">Activar</button>' +
@@ -461,13 +484,13 @@ function restablecerUmbral(){
   refrescar();
 }
 function probarSaludo(){
+  // Usa exactamente el mismo camino que una detección real, para
+  // que la prueba sirva de algo.
   pres.ultimoSaludo = 0;
-  var lang = FRASES[kiosko.idioma] ? kiosko.idioma : 'es';
-  hablar(FRASES[lang].voz, lang);
-  var s = document.getElementById('saludo');
-  s.textContent = FRASES[lang].texto;
-  s.classList.add('visible');
-  setTimeout(function(){ s.classList.remove('visible'); }, 6000);
+  var antesPantalla = kiosko.pantalla, antesAnuncio = kiosko.anunciando;
+  kiosko.pantalla = 'home'; kiosko.anunciando = false;
+  saludar();
+  kiosko.pantalla = antesPantalla; kiosko.anunciando = antesAnuncio;
 }
 
 /* Reactivar tras volver de suspensión */

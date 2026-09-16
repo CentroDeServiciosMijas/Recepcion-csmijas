@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -150,6 +151,24 @@ var pres = { activa:false, video:null, lienzo:null, ctx:null, anterior:null,
 var kiosko = { pantalla:'home', anunciando:false, idioma:'es' };
 var vozLista = false;
 
+/* Recupera el umbral calibrado la última vez en este iPad, si lo
+   hay. Sin esto, cada recarga volvía al valor de fábrica y había
+   que recalibrar. */
+var UMBRAL_GUARDADO = 'csm_presencia_umbral';
+(function cargarUmbralGuardado(){
+  try{
+    var guardado = localStorage.getItem(UMBRAL_GUARDADO);
+    if(guardado !== null){
+      var n = Number(guardado);
+      if(!isNaN(n)) PRESENCIA.umbral = n;
+    }
+  }catch(e){
+    // Navegación privada o almacenamiento bloqueado: no es grave,
+    // simplemente no se recordará entre sesiones.
+    console.error('No se pudo leer el umbral guardado: ' + e);
+  }
+})();
+
 /* ============ ARRANQUE ============ */
 document.getElementById('marco').src = URL_APP;
 
@@ -223,15 +242,65 @@ function elegirVoz(lang, codigo){
 function hablar(texto, lang){
   if(!('speechSynthesis' in window) || !texto) return;
   var codigo = CODIGO_VOZ[lang] || 'es-ES';
-  try{
-    var s = window.speechSynthesis;
-    if(s.paused) s.resume();
-    var u = new SpeechSynthesisUtterance(texto);
-    u.lang = codigo; u.rate = TONO_VOZ.rate; u.pitch = TONO_VOZ.pitch; u.volume = 1;
-    var v = elegirVoz(lang, codigo);
-    if(v) u.voice = v;
-    s.speak(u);
-  }catch(e){ console.error('hablar: ' + e); }
+
+  function lanzar(intento){
+    try{
+      var s = window.speechSynthesis;
+      // Chrome/Safari se quedan "pausados" tras un rato y se tragan
+      // los avisos sin dar ningún error.
+      if(s.paused) s.resume();
+
+      var u = new SpeechSynthesisUtterance(texto);
+      u.lang = codigo; u.rate = TONO_VOZ.rate; u.pitch = TONO_VOZ.pitch; u.volume = 1;
+
+      // En el primer intento se elige la voz con cuidado. Si no
+      // arranca, el reintento va sin voz forzada: algunas voces
+      // concretas fallan en silencio en iOS.
+      if(intento === 0){
+        var v = elegirVoz(lang, codigo);
+        if(v) u.voice = v;
+      }
+
+      var arrancado = false;
+      u.onstart = function(){ arrancado = true; };
+      u.onerror = function(e){
+        console.error('hablar error:', e && e.error);
+        if(intento === 0) setTimeout(function(){ lanzar(1); }, 250);
+      };
+
+      s.speak(u);
+
+      // Fallo típico de iOS: acepta la orden pero nunca llega a
+      // arrancar, sin dar ningún error. Si en 1,2s no ha empezado,
+      // se reintenta una vez.
+      if(intento === 0){
+        setTimeout(function(){
+          if(!arrancado && !window.speechSynthesis.speaking){
+            lanzar(1);
+          }
+        }, 1200);
+      }
+    }catch(e){
+      console.error('hablar: ' + e);
+    }
+  }
+
+  var voces = window.speechSynthesis.getVoices();
+  if(!voces || !voces.length){
+    var lanzado = false;
+    window.speechSynthesis.onvoiceschanged = function(){
+      if(lanzado) return;
+      lanzado = true;
+      lanzar(0);
+    };
+    setTimeout(function(){
+      if(lanzado) return;
+      lanzado = true;
+      lanzar(0);
+    }, 600);
+  } else {
+    lanzar(0);
+  }
 }
 
 /* ============ DETECCIÓN DE PRESENCIA ============ */
@@ -352,6 +421,7 @@ function abrirPanel(){
         '<button class="btn" onclick="ajustar(-2)">Más sensible</button>' +
         '<button class="btn" onclick="ajustar(2)">Menos sensible</button>' +
       '</div>' +
+      '<button class="btn btn-ancho" onclick="restablecerUmbral()" style="background:transparent;color:var(--slate);border:1.5px solid rgba(26,53,87,.15);">Restablecer de fábrica (14)</button>' +
       '<button class="btn btn-ancho" onclick="probarSaludo()">Probar saludo</button>' +
       '<button class="cerrar" onclick="cerrarPanel()">Cerrar</button>' +
     '</div></div>';
@@ -382,6 +452,12 @@ function refrescar(){
 }
 function ajustar(d){
   PRESENCIA.umbral = Math.max(2, Math.min(60, PRESENCIA.umbral + d));
+  try{ localStorage.setItem(UMBRAL_GUARDADO, String(PRESENCIA.umbral)); }catch(e){}
+  refrescar();
+}
+function restablecerUmbral(){
+  PRESENCIA.umbral = 14;
+  try{ localStorage.removeItem(UMBRAL_GUARDADO); }catch(e){}
   refrescar();
 }
 function probarSaludo(){

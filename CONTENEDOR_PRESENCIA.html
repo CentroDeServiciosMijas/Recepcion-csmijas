@@ -218,12 +218,32 @@ function desbloquearVoz(){
 
 /* iOS solo deja hablar poco después de un toque. Como el saludo
    llega cuando nadie toca nada, se mantiene viva la sesión de voz
-   con frases en blanco inaudibles. */
+   con frases en blanco inaudibles.
+
+   Además se vigila un fallo conocido de Safari: tras hablar, la
+   propiedad "speaking" se queda atascada en verdadero para
+   siempre. Cuando eso pasa, todo lo que se mande después se queda
+   en una cola que no se reproduce nunca — y el saludo deja de
+   oírse a partir de la segunda vez. Se detecta y se desatasca. */
+var marcaHabla = 0;   // cuándo se detectó por última vez "hablando"
+
 setInterval(function(){
   if(!vozLista || !('speechSynthesis' in window)) return;
   try{
     var s = window.speechSynthesis;
-    if(s.speaking || s.pending) return;
+
+    if(s.speaking || s.pending){
+      if(!marcaHabla) marcaHabla = Date.now();
+      // Ninguna frase nuestra dura más de 10 segundos: si sigue
+      // "hablando" pasado ese tiempo, está atascado.
+      if(Date.now() - marcaHabla > 10000){
+        s.cancel();
+        marcaHabla = 0;
+      }
+      return;
+    }
+
+    marcaHabla = 0;
     var u = new SpeechSynthesisUtterance(' ');
     u.volume = 0.01; u.rate = 2;
     s.speak(u);
@@ -262,6 +282,13 @@ function hablar(texto, lang){
       // Chrome/Safari se quedan "pausados" tras un rato y se tragan
       // los avisos sin dar ningún error.
       if(s.paused) s.resume();
+
+      // Un saludo es prioritario y siempre es lo más reciente: si
+      // hay algo encolado (normalmente una frase en blanco del
+      // mantenimiento, o una cola atascada de Safari), se limpia.
+      // Sin esto, el segundo saludo se queda esperando detrás de
+      // un fantasma y no se oye nunca.
+      if(s.speaking || s.pending) s.cancel();
 
       var u = new SpeechSynthesisUtterance(texto);
       u.lang = codigo; u.rate = TONO_VOZ.rate; u.pitch = TONO_VOZ.pitch; u.volume = 1;
